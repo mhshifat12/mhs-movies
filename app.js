@@ -6,8 +6,8 @@
     subtitle_url, category, created_at.
  3) Secure admin login and write access require Supabase Auth + RLS policies.
 */
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://dsjckskodinqaxtqnlvf.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_HjM_P0RM8UY1xPjHr9cqfA_hkUL-j-F";
 const TABLE_NAME = "movies";
 
 const demoMovies = [
