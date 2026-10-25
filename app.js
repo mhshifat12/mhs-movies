@@ -164,26 +164,181 @@ $("#resetFiltersBtn").addEventListener("click", () => {
 });
 $("#heroInfoBtn").addEventListener("click", () => $("#infoModal").showModal());
 $("#adminOpenBtn").addEventListener("click", () => {
-  $("#adminMessage").textContent = supabaseClient ? "Admin sign-in wiring is the next setup step." : "Configure Supabase first; do not use a hard-coded password.";
-  $("#adminModal").showModal();
-});
-$("#adminLoginForm").addEventListener("submit", async event => {
-  event.preventDefault();
-  const message = $("#adminMessage");
-  if (!supabaseClient) {
-    message.textContent = "Supabase is not configured yet. Add the project URL and anon/publishable key in app.js.";
+  
+const adminForm = $("#adminLoginForm");
+const adminMessage = $("#adminMessage");
+let isVerifiedAdmin = false;
+
+function adminPanelMarkup(email = "") {
+  return `
+    <div id="adminPanel" style="margin-top:16px;padding-top:16px;border-top:1px solid #333;">
+      <p class="muted">Signed in as ${escapeHtml(email)}. Add a movie below.</p>
+      <form id="addMovieForm" class="form-stack">
+        <label>Movie title
+          <input name="title" required maxlength="180">
+        </label>
+        <label>Description
+          <textarea name="description" rows="3"></textarea>
+        </label>
+        <label>Category
+          <input name="category" placeholder="Action, Anime, Drama">
+        </label>
+        <label>Poster URL
+          <input name="poster_url" type="url">
+        </label>
+        <label>Google Drive file link
+          <input name="drive_file_id" required placeholder="Paste Drive link">
+        </label>
+        <label>Subtitle URL (optional)
+          <input name="subtitle_url" type="url" placeholder="Direct .vtt URL">
+        </label>
+        <button class="primary-button full-width" type="submit">Add movie</button>
+        <p id="addMovieMessage" class="form-message" role="status"></p>
+      </form>
+      <button id="adminSignOutBtn" class="secondary-button full-width" type="button">Sign out</button>
+    </div>`;
+}
+
+async function showAdminPanel(user) {
+  const { data: role, error } = await supabaseClient
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!role) {
+    isVerifiedAdmin = false;
+    await supabaseClient.auth.signOut();
+    adminMessage.textContent = "This account is not authorized as admin.";
     return;
   }
-  message.textContent = "Authentication setup is not enabled in this frontend yet. Configure Supabase Auth and admin access policies before adding movies.";
-  // Intentionally no fake client-side password check. Add supabaseClient.auth.signInWithPassword
-  // after enabling Supabase Auth and assigning admin-only database permissions.
+
+  isVerifiedAdmin = true;
+  adminForm.classList.add("hidden");
+  adminMessage.textContent = "Admin access verified.";
+
+  if (!$("#adminPanel")) {
+    adminForm.insertAdjacentHTML(
+      "afterend",
+      adminPanelMarkup(user.email || "admin")
+    );
+  }
+
+  $("#adminPanel").classList.remove("hidden");
+  bindMovieForm();
+}
+
+function bindMovieForm() {
+  const form = $("#addMovieForm");
+  if (!form || form.dataset.bound === "true") return;
+
+  form.dataset.bound = "true";
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const message = $("#addMovieMessage");
+    const button = form.querySelector('button[type="submit"]');
+
+    if (!supabaseClient || !isVerifiedAdmin) {
+      message.textContent = "Please sign in as an authorized admin.";
+      return;
+    }
+
+    const fields = new FormData(form);
+    const driveLink = String(fields.get("drive_file_id") || "").trim();
+    const title = String(fields.get("title") || "").trim();
+
+    if (!title || !driveLink) {
+      message.textContent = "Movie title and Drive link are required.";
+      return;
+    }
+
+    const movie = {
+      title,
+      description: String(fields.get("description") || "").trim(),
+      category: String(fields.get("category") || "Other").trim() || "Other",
+      poster_url: String(fields.get("poster_url") || "").trim(),
+      drive_file_id: driveFileId(driveLink),
+      subtitle_url: String(fields.get("subtitle_url") || "").trim()
+    };
+
+    button.disabled = true;
+    message.textContent = "Adding movie...";
+
+    try {
+      const { error } = await supabaseClient
+        .from(TABLE_NAME)
+        .insert(movie);
+
+      if (error) throw error;
+
+      message.textContent = "Movie added successfully!";
+      form.reset();
+      await loadMovies();
+    } catch (error) {
+      message.textContent = "Could not add movie: " + error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $("#adminSignOutBtn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    isVerifiedAdmin = false;
+    $("#adminPanel")?.remove();
+    adminForm.classList.remove("hidden");
+    adminMessage.textContent = "Signed out.";
+  }, { once: true });
+}
+
+$("#adminOpenBtn").addEventListener("click", async () => {
+  $("#adminModal").showModal();
+
+  if (!supabaseClient) {
+    adminMessage.textContent = "Supabase is not configured.";
+    return;
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+
+    if (session?.user) {
+      await showAdminPanel(session.user);
+    } else {
+      adminForm.classList.remove("hidden");
+      adminMessage.textContent = "Sign in with your admin email and password.";
+    }
+  } catch (error) {
+    adminMessage.textContent = error.message;
+  }
 });
-document.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
-  const dialog = document.getElementById(button.dataset.close);
-  if (dialog?.open) dialog.close();
-}));
-document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("click", event => {
-  if (event.target === dialog) dialog.close();
-}));
-$("#year").textContent = new Date().getFullYear();
-loadMovies();
+
+adminForm.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  if (!supabaseClient) {
+    adminMessage.textContent = "Supabase is not configured.";
+    return;
+  }
+
+  const email = $("#adminEmail").value.trim();
+  const password = $("#adminPassword").value;
+
+  adminMessage.textContent = "Signing in...";
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) throw error;
+
+    await showAdminPanel(data.user);
+  } catch (error) {
+    adminMessage.textContent = "Login failed: " + error.message;
+  }
+});
