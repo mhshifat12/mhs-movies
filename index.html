@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090b">
+  <title>M_H_S Movies — Watch Your Next Favorite</title>
+  <meta name="description" content="Discover movies on M_H_S Movies.">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="M_H_S Movies home"><span class="brand-mark">M</span><span>M_H_S <b>Movies</b></span></a>
+    <nav class="nav-links" aria-label="Main navigation">
+      <a class="active" href="#home">Home</a>
+      <a href="#library">Movies</a>
+      <a href="#library" data-category-link="Action">Action</a>
+      <a href="#library" data-category-link="Anime">Anime</a>
+    </nav>
+    <div class="header-actions">
+      <label class="search-box" aria-label="Search movies"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Search movies..." autocomplete="off"></label>
+      <button class="icon-button" id="adminOpenBtn" type="button" aria-label="Open admin login" title="Admin login">♙</button>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero" aria-label="Featured movie">
+      <div class="hero-content">
+        <p class="eyebrow"><span class="live-dot"></span> YOUR MOVIE UNIVERSE</p>
+        <h1>Stories worth<br><span>staying up for.</span></h1>
+        <p class="hero-copy">Discover your next favorite movie, all in one place.</p>
+        <div class="hero-buttons">
+          <a class="primary-button" href="#library">Explore Movies <span>→</span></a>
+          <button class="secondary-button" id="heroInfoBtn" type="button">How it works</button>
+        </div>
+        <div class="hero-meta"><span>✦ Curated collection</span><span>•</span><span>Subtitles supported</span></div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="art-glow"></div><div class="art-ring ring-one"></div><div class="art-ring ring-two"></div>
+        <div class="art-monogram">M<span>H</span>S</div>
+        <div class="art-caption">THE NEXT SCENE<br><b>STARTS HERE</b></div>
+      </div>
+      <div class="hero-bottom-fade"></div>
+    </section>
+
+    <section class="status-strip" aria-label="Site status">
+      <div><span class="status-icon">▶</span><span><b id="movieCount">0</b> <small>movies in library</small></span></div>
+      <div><span class="status-icon">CC</span><span><b>Subtitle-ready</b><small> when tracks are available</small></span></div>
+      <div><span class="status-icon">↻</span><span><b id="connectionStatus">Demo mode</b><small> database connection</small></span></div>
+    </section>
+
+    <section class="library section-wrap" id="library">
+      <div class="section-heading">
+        <div><p class="eyebrow">FIND YOUR NEXT WATCH</p><h2>Explore the library</h2></div>
+        <div class="library-tools">
+          <label class="select-wrap"><span class="sr-only">Sort movies</span><select id="sortSelect"><option value="newest">Recently added</option><option value="az">Title A–Z</option></select></label>
+        </div>
+      </div>
+      <div class="category-row" id="categoryRow">
+        <button class="chip active" data-category="All" type="button">All movies</button>
+        <button class="chip" data-category="Action" type="button">Action</button>
+        <button class="chip" data-category="Anime" type="button">Anime</button>
+        <button class="chip" data-category="Drama" type="button">Drama</button>
+        <button class="chip" data-category="Comedy" type="button">Comedy</button>
+        <button class="chip" data-category="Other" type="button">Other</button>
+      </div>
+      <div class="notice hidden" id="configNotice">
+        <b>Setup needed</b>
+        <span>Add your Supabase project URL and publishable/anon key in <code>app.js</code> to load your movie database. Never put a service-role key here.</span>
+      </div>
+      <div class="movie-grid" id="movieGrid" aria-live="polite"></div>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">⌕</div><h3>No movies found</h3><p>Try another search or category.</p>
+        <button class="secondary-button" id="resetFiltersBtn" type="button">Reset filters</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <a class="brand footer-brand" href="#"><span class="brand-mark">M</span><span>M_H_S <b>Movies</b></span></a>
+    <p>Only watch and share videos you own or have permission to distribute.</p>
+    <span>© <span id="year"></span> M_H_S Movies</span>
+  </footer>
+
+  <!-- Movie player modal -->
+  <dialog class="modal player-modal" id="playerModal">
+    <div class="modal-top"><div><p class="eyebrow">NOW PLAYING</p><h2 id="playerTitle">Movie title</h2></div><button class="close-button" data-close="playerModal" aria-label="Close player">×</button></div>
+    <div class="video-shell" id="videoShell">
+      <video id="videoPlayer" controls playsinline preload="metadata">
+        Your browser does not support HTML video.
+      </video>
+      <div class="drive-fallback hidden" id="driveFallback">
+        <div class="drive-fallback-icon">▶</div><h3>Open movie in Drive</h3>
+        <p>This Google Drive link may not work as a direct video source. Open the file in Drive instead.</p>
+        <a class="primary-button" id="driveOpenLink" href="#" target="_blank" rel="noopener noreferrer">Open Google Drive ↗</a>
+      </div>
+    </div>
+    <div class="player-subtitle" id="subtitleStatus">Choose CC in the player controls when a subtitle track is available.</div>
+  </dialog>
+
+  <!-- Info modal -->
+  <dialog class="modal small-modal" id="infoModal">
+    <div class="modal-top"><h2>Welcome to M_H_S Movies</h2><button class="close-button" data-close="infoModal" aria-label="Close">×</button></div>
+    <p>This frontend can display movie information from Supabase. Google Drive preview links are not guaranteed to work in every embedded player, and public sharing makes the linked file accessible to anyone with the link.</p>
+    <p>Use only your own videos or content you have permission to distribute.</p>
+    <button class="primary-button full-width" data-close="infoModal" type="button">Got it</button>
+  </dialog>
+
+  <!-- Admin login placeholder; real authentication is wired after Supabase setup -->
+  <dialog class="modal small-modal" id="adminModal">
+    <div class="modal-top"><div><p class="eyebrow">SITE MANAGEMENT</p><h2>Admin sign in</h2></div><button class="close-button" data-close="adminModal" aria-label="Close">×</button></div>
+    <p class="muted">Admin login will use Supabase Authentication. Configure it before enabling movie management.</p>
+    <form id="adminLoginForm" class="form-stack">
+      <label>Email address<input id="adminEmail" type="email" placeholder="admin@example.com" autocomplete="username" required></label>
+      <label>Password<input id="adminPassword" type="password" placeholder="Your admin password" autocomplete="current-password" required></label>
+      <button class="primary-button full-width" type="submit">Sign in securely <span>→</span></button>
+      <p class="form-message" id="adminMessage" role="status"></p>
+    </form>
+  </dialog>
+</body>
+</html>
